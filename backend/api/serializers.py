@@ -1,84 +1,95 @@
-# serializers.py
 from rest_framework import serializers
 from django.contrib.auth.hashers import make_password
-from .models import Usuario, Empresa
+from .models import (
+    Usuario, UsuarioConsumidor, UsuarioEmpresa, Administrador,
+    EstatisticaEmpresa, Reclamacao, Arquivo, RespostaReclamacao, Relatorio
+)
 
-class EmpresaCadastroSerializer(serializers.ModelSerializer):
-    """
-    Serializer para cadastro de empresas
-    Inclui dados do usuário e dados específicos da empresa
-    """
-    # Campos do usuário
-    nome = serializers.CharField(max_length=150)
-    email = serializers.EmailField()
-    senha = serializers.CharField(write_only=True, min_length=8)
-    telefone = serializers.CharField(max_length=15, required=False)
-    
-    # Campos específicos da empresa
-    cnpj = serializers.CharField(max_length=18)
-    nome_fantasia = serializers.CharField(max_length=150)
-    razao_social = serializers.CharField(max_length=150)
-    descricao = serializers.CharField(required=False, allow_blank=True)
-    
+class UsuarioSerializer(serializers.ModelSerializer):
     class Meta:
-        model = Empresa
-        fields = ['nome', 'email', 'senha', 'telefone', 'cnpj', 
-                 'nome_fantasia', 'razao_social', 'descricao']
-    
-    def validate_email(self, value):
-        """Valida se o email já não está sendo usado"""
-        if Usuario.objects.filter(email=value).exists():
-            raise serializers.ValidationError("Este email já está em uso.")
-        return value
-    
-    def validate_cnpj(self, value):
-        """Valida formato do CNPJ"""
-        import re
-        if not re.match(r'^\d{2}\.\d{3}\.\d{3}/\d{4}-\d{2}$', value):
-            raise serializers.ValidationError("CNPJ deve estar no formato XX.XXX.XXX/XXXX-XX")
-        
-        if Empresa.objects.filter(cnpj=value).exists():
-            raise serializers.ValidationError("Este CNPJ já está cadastrado.")
-        return value
-    
-    def create(self, validated_data):
-        """Cria usuário e perfil de empresa"""
-        # Extrair dados do usuário
-        dados_usuario = {
-            'username': validated_data['email'],
-            'nome': validated_data['nome'],
-            'email': validated_data['email'],
-            'password': make_password(validated_data['senha']),
-            'telefone': validated_data.get('telefone', ''),
-            'tipo_usuario': 'empresa',
-        }
-        
-        # Criar usuário
-        usuario = Usuario.objects.create(**dados_usuario)
-        
-        # Extrair dados da empresa
-        dados_empresa = {
-            'usuario': usuario,
-            'cnpj': validated_data['cnpj'],
-            'nome_fantasia': validated_data['nome_fantasia'],
-            'razao_social': validated_data['razao_social'],
-            'descricao': validated_data.get('descricao', ''),
-        }
-        
-        # Criar empresa
-        empresa = Empresa.objects.create(**dados_empresa)
-        
-        return empresa
+        model = Usuario
+        fields = ('id', 'nome', 'email', 'date_joined')
+        read_only_fields = ('id', 'date_joined')
 
-class EmpresaSerializer(serializers.ModelSerializer):
-    """Serializer para visualização de dados da empresa"""
+class UsuarioConsumidorSerializer(serializers.ModelSerializer):
     nome = serializers.CharField(source='usuario.nome', read_only=True)
     email = serializers.EmailField(source='usuario.email', read_only=True)
-    telefone = serializers.CharField(source='usuario.telefone', read_only=True)
-    data_cadastro = serializers.DateTimeField(source='usuario.date_joined', read_only=True)
-    
+    date_joined = serializers.DateTimeField(source='usuario.date_joined', read_only=True)
+
     class Meta:
-        model = Empresa
-        fields = ['id', 'nome', 'email', 'telefone', 'data_cadastro',
-                 'cnpj', 'nome_fantasia', 'razao_social', 'descricao']
-        read_only_fields = ['id', 'data_cadastro']
+        model = UsuarioConsumidor
+        fields = ('usuario', 'nome', 'email', 'date_joined')
+        read_only_fields = ('usuario', 'nome', 'email', 'date_joined')
+
+class UsuarioEmpresaSerializer(serializers.ModelSerializer):
+    nome = serializers.CharField(source='usuario.nome', read_only=True)
+    email = serializers.EmailField(source='usuario.email', read_only=True)
+    date_joined = serializers.DateTimeField(source='usuario.date_joined', read_only=True)
+
+    class Meta:
+        model = UsuarioEmpresa
+        fields = (
+            'usuario', 'nome', 'email', 'date_joined',
+            'cnpj', 'razao_social', 'nome_social', 'descricao'
+        )
+        read_only_fields = ('usuario', 'nome', 'email', 'date_joined')
+
+    def create(self, validated_data):
+        # Hash da senha antes de salvar o usuário base
+        validated_data['senha'] = make_password(validated_data.get('senha'))
+        return super().create(validated_data)
+
+class AdministradorSerializer(serializers.ModelSerializer):
+    nome = serializers.CharField(source='usuario.nome', read_only=True)
+    email = serializers.EmailField(source='usuario.email', read_only=True)
+    date_joined = serializers.DateTimeField(source='usuario.date_joined', read_only=True)
+
+    class Meta:
+        model = Administrador
+        fields = ('usuario', 'nome', 'email', 'date_joined')
+        read_only_fields = ('usuario', 'nome', 'email', 'date_joined')
+
+class EstatisticaEmpresaSerializer(serializers.ModelSerializer):
+    usuario_empresa_nome = serializers.CharField(source='usuario_empresa.razao_social', read_only=True)
+    class Meta:
+        model = EstatisticaEmpresa
+        fields = (
+            'usuario_empresa', 'usuario_empresa_nome', 'total_reclamacoes', 
+            'reclamacoes_resolvidas', 'reclamacoes_pendentes', 'media_tempo_resolucao'
+        )
+        read_only_fields = ('usuario_empresa',)
+
+class ReclamacaoSerializer(serializers.ModelSerializer):
+    usuario_consumidor_nome = serializers.CharField(source='usuario_consumidor.nome', read_only=True)
+    empresa_razao_social = serializers.CharField(source='empresa.razao_social', read_only=True)
+    class Meta:
+        model = Reclamacao
+        fields = (
+            'id', 'usuario_consumidor', 'usuario_consumidor_nome', 'empresa', 
+            'empresa_razao_social', 'titulo', 'descricao', 'data_criacao', 'status'
+        )
+        read_only_fields = ('id', 'data_criacao')
+
+class ArquivoSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Arquivo
+        fields = ('id', 'reclamacao', 'arquivo', 'nome_arquivo', 'tipo_arquivo', 'data_upload')
+        read_only_fields = ('id', 'data_upload')
+
+class RespostaReclamacaoSerializer(serializers.ModelSerializer):
+    reclamacao_titulo = serializers.CharField(source='reclamacao.titulo', read_only=True)
+    empresa_razao_social = serializers.CharField(source='empresa.razao_social', read_only=True)
+    class Meta:
+        model = RespostaReclamacao
+        fields = (
+            'id', 'reclamacao', 'reclamacao_titulo', 'empresa', 'empresa_razao_social', 
+            'descricao', 'data_criacao', 'status_resolucao'
+        )
+        read_only_fields = ('id', 'data_criacao')
+
+class RelatorioSerializer(serializers.ModelSerializer):
+    administrador_nome = serializers.CharField(source='administrador.nome', read_only=True)
+    class Meta:
+        model = Relatorio
+        fields = ('id', 'administrador', 'administrador_nome', 'titulo', 'data_geracao', 'conteudo')
+        read_only_fields = ('id', 'data_geracao')

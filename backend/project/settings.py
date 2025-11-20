@@ -65,7 +65,7 @@ REST_FRAMEWORK = {
     'PAGE_SIZE': 20
 }
 
-AUTH_USER_MODEL = 'api.Usuario'  # substitua 'seu_app' pelo nome do seu app
+AUTH_USER_MODEL = 'api.Usuario' 
 
 # Configurações de segurança para senhas
 AUTH_PASSWORD_VALIDATORS = [

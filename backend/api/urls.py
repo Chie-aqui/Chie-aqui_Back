@@ -10,7 +10,6 @@ router.register(r'consumidores', views.UsuarioConsumidorViewSet, basename='consu
 router.register(r'empresas', views.UsuarioEmpresaViewSet, basename='empresa')
 router.register(r'administradores', views.AdministradorViewSet, basename='administrador')
 router.register(r'reclamacoes', views.ReclamacaoViewSet, basename='reclamacao')
-router.register(r'respostas_reclamacao', views.RespostaReclamacaoViewSet, basename='resposta_reclamacao')
 
 urlpatterns = [
     path('empresas/cadastro/', views.UsuarioEmpresaCadastroView.as_view(), name='empresa-cadastro'),
@@ -19,9 +18,12 @@ urlpatterns = [
     path('empresas/perfil/', views.UsuarioEmpresaPerfilView.as_view(), name='empresa-perfil'),
     path('empresas/lista/', views.UsuarioEmpresaListView.as_view(), name='empresa-list'),
 
+    path('consumidores/cadastro/', views.UsuarioConsumidorCadastroView.as_view(), name='consumidor-cadastro'),
     path('consumidores/login/', views.usuario_consumidor_login, name='consumidor-login'),
     path('consumidores/logout/', views.usuario_consumidor_logout, name='consumidor-logout'),
     path('consumidores/perfil/', views.UsuarioConsumidorPerfilView.as_view(), name='consumidor-perfil'),
+
+    path('reclamacoes/<int:reclamacao_id>/responder/', views.RespostaReclamacaoCreateAPIView.as_view(), name='reclamacao-responder'),
 
     path('', views.api_root),
     path('', include(router.urls)),

@@ -2,3 +2,7 @@ Django==5.2.5,<6.0
 psycopg2-binary<2.10,>=2.9.6
 djangorestframework>=3.15.2,<4.0
 python-dotenv
+flake8
+black
+isort
+django-cors-headers

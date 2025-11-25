@@ -35,7 +35,8 @@ class Usuario(AbstractUser):
     
     nome = models.CharField(max_length=255, blank=True, null=True)
     # Sobrescreve o email de AbstractUser para ser único e null=False (padrão)
-    email = models.EmailField(unique=True) 
+    email = models.EmailField(unique=True)
+    phone = models.CharField(max_length=20, blank=True, null=True) 
 
     # Configurações obrigatórias para um modelo de usuário personalizado
     USERNAME_FIELD = 'email'

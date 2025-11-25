@@ -48,15 +48,25 @@ class UsuarioConsumidorViewSet(viewsets.ModelViewSet):
     permission_classes = [IsAuthenticated]
 
     def get_queryset(self):
-        queryset = UsuarioConsumidor.objects.all()
         user = self.request.user
 
-        # Apenas administradores podem buscar
+        if not user.is_authenticated:
+            return UsuarioConsumidor.objects.none()
+
+        # Se ele buscou o próprio email, permitir
+        email = self.request.query_params.get('email', None)
+        if email == user.email:
+            return UsuarioConsumidor.objects.filter(usuario=user)
+
+        # Admin pode tudo
         if hasattr(user, 'administrador') or user.is_superuser:
-            email = self.request.query_params.get('email', None)
+            queryset = UsuarioConsumidor.objects.all()
             if email is not None:
                 queryset = queryset.filter(usuario__email__icontains=email)
-        return queryset
+            return queryset
+
+        # Usuário comum sem filtro → retorna apenas ele mesmo
+        return UsuarioConsumidor.objects.filter(usuario=user)
 
 class UsuarioConsumidorCadastroView(generics.CreateAPIView):
     serializer_class = UsuarioConsumidorSerializer
@@ -296,6 +306,7 @@ def usuario_consumidor_logout(request):
 class ReclamacaoViewSet(viewsets.ModelViewSet):
     serializer_class = ReclamacaoSerializer
     permission_classes = [IsAuthenticatedOrReadOnly]
+    ordering = ['-data_criacao'] # Adicionado para ordenar por data de criação descendente
 
     def perform_create(self, serializer):
         if not hasattr(self.request.user, 'usuarioconsumidor'):

@@ -15,6 +15,7 @@ from .serializers import (
     UsuarioEmpresaProfileSerializer,
     AdministradorSerializer, ReclamacaoSerializer, RespostaReclamacaoSerializer
 )
+from rest_framework import exceptions # Import exceptions
 
 @api_view(['GET'])
 def api_root(request, format=None):
@@ -33,7 +34,6 @@ def api_root(request, format=None):
         'empresa_lista': reverse('api:empresa-list', request=request, format=format),
         'administradores': reverse('api:administrador-list', request=request, format=format),
         'reclamacoes': reverse('api:reclamacao-list', request=request, format=format),
-        'respostas_reclamacao': reverse('api:resposta_reclamacao-list', request=request, format=format),
     })
 
 # Views para Usuario
@@ -80,21 +80,38 @@ class UsuarioConsumidorCadastroView(generics.CreateAPIView):
         return Response(response_data, status=status.HTTP_201_CREATED)
 
 class UsuarioConsumidorPerfilView(generics.RetrieveUpdateDestroyAPIView):
+
     serializer_class = UsuarioConsumidorSerializer
     permission_classes = [IsAuthenticated]
-    
+
     def get_object(self):
+        user = self.request.user
+
+        # Logging for debugging purposes
+        print(f"[DEBUG] UsuarioConsumidorPerfilView.get_object called.")
+        print(f"[DEBUG] request.user: {user}")
+        print(f"[DEBUG] request.auth: {self.request.auth}")
+        print(f"[DEBUG] request.user.pk: {user.pk if user.is_authenticated else 'AnonymousUser'}")
+
         try:
-            return UsuarioConsumidor.objects.get(pk=self.request.user.pk)
+            if not user.is_authenticated:
+                # This case should ideally be handled by IsAuthenticated permission, resulting in 401.
+                # Raising an API exception is more robust than returning a Response directly.
+                raise exceptions.PermissionDenied({'detail': 'Usuário não autenticado'})
+
+            # Get the UsuarioConsumidor object associated with the authenticated user.
+            return UsuarioConsumidor.objects.get(usuario=user)
+
         except UsuarioConsumidor.DoesNotExist:
-            return Response(
-                {'error': 'Usuário não é um consumidor'}, 
-                status=status.HTTP_403_FORBIDDEN
-            )
-    
-    def perform_destroy(self, instance):
-        # O usuário associado também será excluído devido ao on_delete=models.CASCADE
-        instance.usuario.delete()
+            print(f"[DEBUG] UsuarioConsumidor not found for user PK: {user.pk}")
+            # Raise NotFound exception for a 404 or 403 status code, as it's a specific resource not found for this user.
+            # Using 403 Forbidden as it implies the user is authenticated but doesn't have the required 'consumer' role.
+            raise exceptions.PermissionDenied({'detail': 'Usuário não é um consumidor'})
+        except Exception as e:
+            # Catch any other unexpected errors during object retrieval
+            print(f"[ERROR] Unexpected error in UsuarioConsumidorPerfilView.get_object: {e}")
+            # Raise a generic APIException for other errors, ensuring a JSON response.
+            raise exceptions.APIException({'detail': 'Erro interno ao buscar perfil de consumidor.'}, code=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
 # Views para UsuarioEmpresa
 class UsuarioEmpresaViewSet(viewsets.ModelViewSet):
@@ -122,41 +139,38 @@ class UsuarioEmpresaViewSet(viewsets.ModelViewSet):
             
         return queryset
 
-class UsuarioEmpresaCadastroView(generics.CreateAPIView):
-    serializer_class = UsuarioEmpresaSerializer
-    permission_classes = [AllowAny]
-    
-    def create(self, request, *args, **kwargs):
-        print(f"[DEBUG] Raw request data for company registration: {request.data}")
-        serializer = self.get_serializer(data=request.data)
-        if serializer.is_valid():
-            usuario_empresa = serializer.save()
-            
-            token, created = Token.objects.get_or_create(user=usuario_empresa.usuario)
-            
-            response_data = {
-                'message': 'Empresa cadastrada com sucesso!',
-                'usuario_empresa': UsuarioEmpresaSerializer(usuario_empresa).data,
-                'token': token.key
-            }
-            
-            return Response(response_data, status=status.HTTP_201_CREATED)
-        else:
-            print(f"[DEBUG] Company registration validation errors: {serializer.errors}")
-            return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
-
 class UsuarioEmpresaPerfilView(generics.RetrieveUpdateAPIView):
+
     serializer_class = UsuarioEmpresaProfileSerializer
     permission_classes = [IsAuthenticated]
-    
+
     def get_object(self):
+        user = self.request.user
+
+        print(f"[DEBUG] UsuarioEmpresaPerfilView.get_object called.")
+        print(f"[DEBUG] request.user: {user}")
+        print(f"[DEBUG] request.auth: {self.request.auth}")
+        print(f"[DEBUG] request.user.pk: {user.pk if user.is_authenticated else 'AnonymousUser'}")
+
+        if not user.is_authenticated:
+            return Response({'error': 'Usuário não autenticado'}, status=status.HTTP_403_FORBIDDEN)
+
         try:
-            return UsuarioEmpresa.objects.get(pk=self.request.user.pk)
+            return UsuarioEmpresa.objects.get(usuario=user)
+
         except UsuarioEmpresa.DoesNotExist:
+            print(f"[DEBUG] UsuarioEmpresa not found for user PK: {user.pk}")
             return Response(
-                {'error': 'Usuário não é uma empresa'}, 
+                {'error': 'Usuário não é uma empresa'},
                 status=status.HTTP_403_FORBIDDEN
             )
+        except Exception as e:
+            print(f"[ERROR] Unexpected error in UsuarioEmpresaPerfilView.get_object: {e}")
+            return Response(
+                {'error': 'Erro interno ao buscar perfil de empresa.'},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )
+
 
 @api_view(['POST'])
 @permission_classes([AllowAny])

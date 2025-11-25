@@ -9,8 +9,12 @@ from .models import (
 class UsuarioSerializer(serializers.ModelSerializer):
     class Meta:
         model = Usuario
-        fields = ('id', 'nome', 'email', 'date_joined')
-        read_only_fields = ('id', 'date_joined')
+        # Added 'phone' field to be readable
+        fields = ('id', 'nome', 'email', 'date_joined', 'phone')
+        read_only_fields = ('id', 'date_joined', 'phone')
+        extra_kwargs = {
+            'phone': {'allow_null': True}
+        }
 
 class UsuarioConsumidorSerializer(serializers.ModelSerializer):
     nome = serializers.CharField(write_only=True, required=True)
@@ -21,23 +25,59 @@ class UsuarioConsumidorSerializer(serializers.ModelSerializer):
     display_nome = serializers.CharField(source='usuario.nome', read_only=True)
     display_email = serializers.EmailField(source='usuario.email', read_only=True)
     date_joined = serializers.DateTimeField(source='usuario.date_joined', read_only=True)
+    # Sourcing phone from the related Usuario object
+    phone = serializers.CharField(source='usuario.phone', read_only=True, allow_null=True)
+
+    # SerializerMethodFields for complaint statistics
+    totalComplaints = serializers.SerializerMethodField()
+    resolved = serializers.SerializerMethodField()
+    helpfulVotes = serializers.SerializerMethodField()
+    profileViews = serializers.SerializerMethodField()
 
     class Meta:
         model = UsuarioConsumidor
         fields = (
             'display_id', 'nome', 'email', 'senha',
-            'display_nome', 'display_email', 'date_joined'
+            'display_nome', 'display_email', 'date_joined',
+            'phone', # Added phone
+            'totalComplaints', 'resolved', 'helpfulVotes', 'profileViews' # Added stats fields
         )
-        read_only_fields = ('display_id', 'date_joined', 'display_nome', 'display_email')
+        read_only_fields = (
+            'display_id', 'date_joined', 'display_nome', 'display_email',
+            'phone', # Added phone to read_only_fields
+            'totalComplaints', 'resolved', 'helpfulVotes', 'profileViews' # Added stats fields to read_only_fields
+        )
         extra_kwargs = {
-            'usuario': {'read_only': True}
+            'usuario': {'read_only': True},
+            # Ensure sourced fields also respect nullability if defined on the source model
+            'phone': {'allow_null': True}
         }
+
+    def get_totalComplaints(self, obj):
+        # Count complaints associated with this consumer
+        return Reclamacao.objects.filter(usuario_consumidor=obj).count()
+
+    def get_resolved(self, obj):
+        # Count resolved complaints for this consumer
+        return Reclamacao.objects.filter(usuario_consumidor=obj, status='Resolvida').count()
+
+    def get_helpfulVotes(self, obj):
+        # This would require logic to sum up votes, assuming a Vote model exists or votes are stored elsewhere.
+        # For now, returning 0 as a placeholder.
+        return 0 # Placeholder: implement vote counting logic if available
+
+    def get_profileViews(self, obj):
+        # This would require a mechanism to track profile views (e.g., a separate model or counter).
+        # For now, returning 0 as a placeholder.
+        return 0 # Placeholder: implement profile view tracking logic if available
 
     @transaction.atomic
     def create(self, validated_data):
         nome = validated_data.pop('nome')
         email = validated_data.pop('email')
         senha = validated_data.pop('senha')
+        # Ensure phone is passed to create_user if it exists in validated_data
+        # For now, assuming it is handled by Usuario.objects.create_user if provided during signup
         usuario = Usuario.objects.create_user(email=email, password=senha, nome=nome)
         usuario_consumidor = UsuarioConsumidor.objects.create(usuario=usuario, **validated_data)
         return usuario_consumidor

@@ -12,7 +12,7 @@ router.register(r'administradores', views.AdministradorViewSet, basename='admini
 router.register(r'reclamacoes', views.ReclamacaoViewSet, basename='reclamacao')
 
 urlpatterns = [
-    path('empresas/cadastro/', views.UsuarioEmpresaCadastroView.as_view(), name='empresa-cadastro'),
+    path('empresas/cadastro/', views.UsuarioEmpresaListView.as_view(), name='empresa-cadastro'),
     path('empresas/login/', views.usuario_empresa_login, name='empresa-login'),
     path('empresas/logout/', views.usuario_empresa_logout, name='empresa-logout'),
     path('empresas/perfil/', views.UsuarioEmpresaPerfilView.as_view(), name='empresa-perfil'),

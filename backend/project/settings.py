@@ -31,7 +31,7 @@ DEBUG = bool(int(os.getenv('DEBUG', 0)))
 ALLOWED_HOSTS = [
     '127.0.0.1',       # loopback
     'localhost',       # localhost
-    'meudominio.com',  # domínio de produção
+    'chie-aqui-back.onrender.com',  # domínio de produção
     '127.0.0.0'
 ]
 

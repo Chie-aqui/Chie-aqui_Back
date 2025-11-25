@@ -11,24 +11,24 @@ class UsuarioSerializer(serializers.ModelSerializer):
         model = Usuario
         # Added 'phone' field to be readable
         fields = ('id', 'nome', 'email', 'date_joined', 'phone')
-        read_only_fields = ('id', 'date_joined', 'phone')
+        read_only_fields = ('id', 'date_joined',)
         extra_kwargs = {
             'phone': {'allow_null': True}
         }
 
 class UsuarioConsumidorSerializer(serializers.ModelSerializer):
-    nome = serializers.CharField(write_only=True, required=True)
-    email = serializers.EmailField(write_only=True, required=True)
-    senha = serializers.CharField(write_only=True, required=True, min_length=8)
+    nome = serializers.CharField(source="usuario.nome", required=False)
+    email = serializers.EmailField(source="usuario.email", required=False)
+    phone = serializers.CharField(source="usuario.phone", required=False, allow_null=True, allow_blank=True)
+    senha = serializers.CharField(write_only=True, required=False, min_length=8)
+    
+    user_complaints = serializers.SerializerMethodField()
 
     display_id = serializers.IntegerField(source='usuario.id', read_only=True)
     display_nome = serializers.CharField(source='usuario.nome', read_only=True)
     display_email = serializers.EmailField(source='usuario.email', read_only=True)
     date_joined = serializers.DateTimeField(source='usuario.date_joined', read_only=True)
-    # Sourcing phone from the related Usuario object
-    phone = serializers.CharField(source='usuario.phone', read_only=True, allow_null=True)
 
-    # SerializerMethodFields for complaint statistics
     totalComplaints = serializers.SerializerMethodField()
     resolved = serializers.SerializerMethodField()
     helpfulVotes = serializers.SerializerMethodField()
@@ -37,50 +37,79 @@ class UsuarioConsumidorSerializer(serializers.ModelSerializer):
     class Meta:
         model = UsuarioConsumidor
         fields = (
-            'display_id', 'nome', 'email', 'senha',
+            'display_id', 'nome', 'email', 'senha', 'phone',
             'display_nome', 'display_email', 'date_joined',
-            'phone', # Added phone
-            'totalComplaints', 'resolved', 'helpfulVotes', 'profileViews' # Added stats fields
+            'totalComplaints', 'resolved', 'helpfulVotes', 'profileViews',
+            'user_complaints' # Adicionado o campo de reclamações
         )
         read_only_fields = (
             'display_id', 'date_joined', 'display_nome', 'display_email',
-            'phone', # Added phone to read_only_fields
-            'totalComplaints', 'resolved', 'helpfulVotes', 'profileViews' # Added stats fields to read_only_fields
+            'totalComplaints', 'resolved', 'helpfulVotes', 'profileViews'
         )
-        extra_kwargs = {
-            'usuario': {'read_only': True},
-            # Ensure sourced fields also respect nullability if defined on the source model
-            'phone': {'allow_null': True}
-        }
-
+        
     def get_totalComplaints(self, obj):
-        # Count complaints associated with this consumer
         return Reclamacao.objects.filter(usuario_consumidor=obj).count()
 
     def get_resolved(self, obj):
-        # Count resolved complaints for this consumer
         return Reclamacao.objects.filter(usuario_consumidor=obj, status='Resolvida').count()
 
     def get_helpfulVotes(self, obj):
-        # This would require logic to sum up votes, assuming a Vote model exists or votes are stored elsewhere.
-        # For now, returning 0 as a placeholder.
-        return 0 # Placeholder: implement vote counting logic if available
+        return 0
 
     def get_profileViews(self, obj):
-        # This would require a mechanism to track profile views (e.g., a separate model or counter).
-        # For now, returning 0 as a placeholder.
-        return 0 # Placeholder: implement profile view tracking logic if available
+        return 0
+
+    def get_user_complaints(self, obj):
+        # Retorna as reclamações do usuário consumidor
+        complaints = Reclamacao.objects.filter(usuario_consumidor=obj).order_by('-data_criacao')
+        return ReclamacaoSerializer(complaints, many=True).data
 
     @transaction.atomic
     def create(self, validated_data):
-        nome = validated_data.pop('nome')
-        email = validated_data.pop('email')
+        usuario_data = validated_data.pop('usuario', {})
         senha = validated_data.pop('senha')
-        # Ensure phone is passed to create_user if it exists in validated_data
-        # For now, assuming it is handled by Usuario.objects.create_user if provided during signup
-        usuario = Usuario.objects.create_user(email=email, password=senha, nome=nome)
+        
+        nome = usuario_data.get('nome')
+        email = usuario_data.get('email')
+        phone = usuario_data.get('phone')
+
+        usuario = Usuario.objects.create_user(
+            email=email, password=senha, nome=nome, phone=phone
+        )
         usuario_consumidor = UsuarioConsumidor.objects.create(usuario=usuario, **validated_data)
         return usuario_consumidor
+
+    @transaction.atomic
+    def update(self, instance, validated_data):
+        usuario = instance.usuario
+
+        # O DRF já trata campos com 'source' no nível superior de validated_data
+        nome = validated_data.get("nome")
+        email = validated_data.get("email")
+        phone = validated_data.get("phone")
+
+        senha = validated_data.pop("senha", None)
+        
+        # Atualiza apenas campos enviados
+        if nome is not None:
+            usuario.nome = nome
+
+        if email is not None:
+            usuario.email = email
+
+        if phone is not None:
+            usuario.phone = phone
+
+        if senha is not None:
+            usuario.set_password(senha)
+
+        usuario.save()
+
+        # Atualiza outros dados do model do consumidor (se houver)
+        # return super().update(instance, validated_data)
+        # Como não há campos diretos no UsuarioConsumidor sendo atualizados aqui,
+        # podemos simplesmente retornar a instância.
+        return instance
 
 class UsuarioEmpresaSerializer(serializers.ModelSerializer):
     nome = serializers.CharField(write_only=True, required=True)
@@ -148,17 +177,30 @@ class AdministradorSerializer(serializers.ModelSerializer):
         read_only_fields = ('usuario', 'nome', 'email', 'date_joined')
 
 class ReclamacaoSerializer(serializers.ModelSerializer):
-    usuario_consumidor_nome = serializers.CharField(source='usuario_consumidor.nome', read_only=True)
+    usuario_consumidor_nome = serializers.SerializerMethodField()
     empresa_razao_social = serializers.CharField(source='empresa.razao_social', read_only=True)
     empresa = serializers.PrimaryKeyRelatedField(queryset=UsuarioEmpresa.objects.all())
+    resposta = serializers.SerializerMethodField()
 
     class Meta:
         model = Reclamacao
         fields = (
             'id', 'usuario_consumidor', 'usuario_consumidor_nome', 'empresa', 
-            'empresa_razao_social', 'titulo', 'descricao', 'data_criacao', 'status'
+            'empresa_razao_social', 'titulo', 'descricao', 'data_criacao', 'status', 'resposta'
         )
-        read_only_fields = ('id', 'data_criacao', 'usuario_consumidor', 'status')
+        read_only_fields = ('id', 'data_criacao', 'usuario_consumidor')
+
+    def get_usuario_consumidor_nome(self, obj):
+        if obj.usuario_consumidor and obj.usuario_consumidor.usuario:
+            return obj.usuario_consumidor.usuario.nome or obj.usuario_consumidor.usuario.email
+        return "Consumidor Desconhecido"
+
+    def get_resposta(self, obj):
+        # Modificado para pegar a última resposta, se houver múltiplas
+        resposta = RespostaReclamacao.objects.filter(reclamacao=obj).order_by('-data_criacao').first()
+        if resposta:
+            return RespostaReclamacaoSerializer(resposta).data
+        return None
 
 class ArquivoSerializer(serializers.ModelSerializer):
     class Meta:

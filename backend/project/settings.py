@@ -32,16 +32,10 @@ ALLOWED_HOSTS = [
     '127.0.0.1',       # loopback
     'localhost',       # localhost
     'chie-aqui-back.onrender.com',  # domínio de produção
-    'chie-aqui-back-1.onrender.com'
     '127.0.0.0'
 ]
 
 # Application definition
-
-SUPERUSER_USERNAME = os.environ.get('DJANGO_SUPERUSER_USERNAME', 'admin')
-SUPERUSER_EMAIL = os.environ.get('DJANGO_SUPERUSER_EMAIL', 'admin@example.com')
-SUPERUSER_PASSWORD = os.environ.get('DJANGO_SUPERUSER_PASSWORD', 'sua_senha_secreta')
-
 INSTALLED_APPS = [
     'django.contrib.admin',
     'django.contrib.auth',

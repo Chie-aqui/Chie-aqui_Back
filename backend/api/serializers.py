@@ -51,7 +51,7 @@ class UsuarioConsumidorSerializer(serializers.ModelSerializer):
         return Reclamacao.objects.filter(usuario_consumidor=obj).count()
 
     def get_resolved(self, obj):
-        return Reclamacao.objects.filter(usuario_consumidor=obj, status='Resolvida').count()
+        return Reclamacao.objects.filter(usuario_consumidor=obj, status='ENCERRADA').count()
 
     def get_helpfulVotes(self, obj):
         return 0

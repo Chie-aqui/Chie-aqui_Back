@@ -26,7 +26,7 @@ def api_root(request, format=None):
         'consumidor_login': reverse('api:consumidor-login', request=request, format=format),
         'consumidor_logout': reverse('api:consumidor-logout', request=request, format=format),
         'consumidor_perfil': reverse('api:consumidor-perfil', request=request, format=format),
-        'empresas': reverse('api:empresa-list', request=request, format=format),
+        'empresas': reverse('api:emprcadastroesa-list', request=request, format=format),
         'empresa_cadastro': reverse('api:empresa-cadastro', request=request, format=format),
         'empresa_login': reverse('api:empresa-login', request=request, format=format),
         'empresa_logout': reverse('api:empresa-logout', request=request, format=format),
@@ -395,3 +395,27 @@ class RespostaReclamacaoUpdateAPIView(generics.UpdateAPIView):
         
         serializer = self.get_serializer(instance)
         return Response(serializer.data)
+    
+class UsuarioEmpresaCadastroView(generics.CreateAPIView):
+    """
+    Endpoint para Cadastro (POST) de novas empresas.
+    Permite acesso a qualquer usuário (AllowAny).
+    """
+    serializer_class = UsuarioEmpresaSerializer
+    permission_classes = [AllowAny] # <--- SOLUÇÃO: PERMITIR QUALQUER UM
+    
+    def create(self, request, *args, **kwargs):
+        serializer = self.get_serializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        usuario_empresa = serializer.save()
+
+        # Após a empresa ser criada, tente logá-la e gerar um token
+        user = usuario_empresa.usuario
+        token, created = Token.objects.get_or_create(user=user)
+
+        response_data = {
+            'message': 'Empresa cadastrada com sucesso!',
+            'usuario_empresa': UsuarioEmpresaSerializer(usuario_empresa).data,
+            'token': token.key
+        }
+        return Response(response_data, status=status.HTTP_201_CREATED)

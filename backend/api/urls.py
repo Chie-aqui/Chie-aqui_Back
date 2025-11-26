@@ -24,6 +24,7 @@ urlpatterns = [
     path('consumidores/perfil/', views.UsuarioConsumidorPerfilView.as_view(), name='consumidor-perfil'),
 
     path('reclamacoes/<int:reclamacao_id>/responder/', views.RespostaReclamacaoCreateAPIView.as_view(), name='reclamacao-responder'),
+    path('respostas-reclamacao/<int:pk>/status/', views.RespostaReclamacaoUpdateAPIView.as_view(), name='respostareclamacao-update-status'), # New URL for updating response status
 
     path('', views.api_root),
     path('', include(router.urls)),

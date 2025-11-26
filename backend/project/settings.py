@@ -32,6 +32,7 @@ ALLOWED_HOSTS = [
     '127.0.0.1',       # loopback
     'localhost',       # localhost
     'chie-aqui-back.onrender.com',  # domínio de produção
+    'chie-aqui-back-1.onrender.com'
     '127.0.0.0'
 ]
 

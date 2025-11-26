@@ -34,6 +34,7 @@ def api_root(request, format=None):
         'empresa_lista': reverse('api:empresa-list', request=request, format=format),
         'administradores': reverse('api:administrador-list', request=request, format=format),
         'reclamacoes': reverse('api:reclamacao-list', request=request, format=format),
+        'respostas_reclamacao_status': reverse('api:respostareclamacao-update-status', request=request, format=format, args=[1]), # Added with a placeholder ID
     })
 
 # Views para Usuario
@@ -356,7 +357,41 @@ class RespostaReclamacaoCreateAPIView(generics.CreateAPIView):
         # The 'empresa' for the response should be the one the complaint is directed to.
         empresa = reclamacao.empresa
         serializer.save(reclamacao=reclamacao, empresa=empresa, status_resolucao=RespostaReclamacao.StatusResolucao.EM_ANALISE)
+
+
+class RespostaReclamacaoUpdateAPIView(generics.UpdateAPIView):
+    queryset = RespostaReclamacao.objects.all()
+    serializer_class = RespostaReclamacaoSerializer
+    permission_classes = [IsAuthenticated]
+    lookup_field = 'pk'
+
+    def get_object(self):
+        obj = super().get_object()
+        user = self.request.user
+
+        if not hasattr(user, 'usuarioconsumidor') or obj.reclamacao.usuario_consumidor != user.usuarioconsumidor:
+            raise exceptions.PermissionDenied("Você não tem permissão para atualizar esta resposta.")
         
-        # Optionally update the complaint status to 'Respondida'
-        reclamacao.status = 'Respondida'
-        reclamacao.save()
+        return obj
+
+    def patch(self, request, *args, **kwargs):
+        instance = self.get_object()
+        new_status_resolucao = request.data.get('status_resolucao')
+
+        if not new_status_resolucao:
+            return Response({'detail': 'status_resolucao é obrigatório.'}, status=status.HTTP_400_BAD_REQUEST)
+
+        if new_status_resolucao not in [choice[0] for choice in RespostaReclamacao.StatusResolucao.choices]:
+            return Response({'detail': 'status_resolucao inválido.'}, status=status.HTTP_400_BAD_REQUEST)
+
+        instance.status_resolucao = new_status_resolucao
+        instance.save()
+
+        # Update the parent Reclamacao status if the response is finalized
+        if new_status_resolucao in [RespostaReclamacao.StatusResolucao.RESOLVIDA, RespostaReclamacao.StatusResolucao.NAO_RESOLVIDA]:
+            reclamacao = instance.reclamacao
+            reclamacao.status = 'ENCERRADA' # Set to 'Encerrada' when response is finalized
+            reclamacao.save()
+        
+        serializer = self.get_serializer(instance)
+        return Response(serializer.data)

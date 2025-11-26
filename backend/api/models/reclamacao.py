@@ -5,8 +5,7 @@ from .consumidor import UsuarioConsumidor
 class Reclamacao(models.Model):
     class StatusReclamacao(models.TextChoices):
         ABERTA = 'ABERTA', 'Aberta'
-        EM_ANDAMENTO = 'EM_ANDAMENTO', 'Em Andamento'
-        FECHADA = 'FECHADA', 'Fechada'
+        ENCERRADA = 'ENCERRADA', 'Encerrada'
 
     usuario_consumidor = models.ForeignKey(UsuarioConsumidor, on_delete=models.CASCADE, related_name='reclamacoes')
     empresa = models.ForeignKey(UsuarioEmpresa, on_delete=models.CASCADE, related_name='reclamacoes_recebidas')

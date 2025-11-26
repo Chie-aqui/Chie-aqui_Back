@@ -311,7 +311,7 @@ class ReclamacaoViewSet(viewsets.ModelViewSet):
 
     def perform_create(self, serializer):
         if not hasattr(self.request.user, 'usuarioconsumidor'):
-            raise status.HTTP_403_FORBIDDEN("Apenas consumidores podem criar reclamações.")
+            raise exceptions.PermissionDenied("Apenas consumidores podem criar reclamações.")
         print(f"[DEBUG] Reclamacao validated data: {serializer.validated_data}")
         serializer.save(usuario_consumidor=self.request.user.usuarioconsumidor)
 

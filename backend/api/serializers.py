@@ -176,19 +176,30 @@ class AdministradorSerializer(serializers.ModelSerializer):
         fields = ('usuario', 'nome', 'email', 'date_joined')
         read_only_fields = ('usuario', 'nome', 'email', 'date_joined')
 
+class ArquivoSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Arquivo
+        fields = ('id', 'reclamacao', 'arquivo', 'nome_arquivo', 'tipo_arquivo', 'data_upload')
+        read_only_fields = ('id', 'data_upload')
+
 class ReclamacaoSerializer(serializers.ModelSerializer):
     usuario_consumidor_nome = serializers.SerializerMethodField()
     empresa_razao_social = serializers.CharField(source='empresa.razao_social', read_only=True)
     empresa = serializers.PrimaryKeyRelatedField(queryset=UsuarioEmpresa.objects.all())
     resposta = serializers.SerializerMethodField()
+    arquivos_upload = serializers.ListField(
+        child=serializers.FileField(), write_only=True, required=False, source='arquivos'
+    )
+    arquivos = ArquivoSerializer(many=True, read_only=True)
 
     class Meta:
         model = Reclamacao
         fields = (
             'id', 'usuario_consumidor', 'usuario_consumidor_nome', 'empresa', 
-            'empresa_razao_social', 'titulo', 'descricao', 'data_criacao', 'status', 'resposta'
+            'empresa_razao_social', 'titulo', 'descricao', 'data_criacao', 'status', 'resposta',
+            'arquivos_upload', 'arquivos'
         )
-        read_only_fields = ('id', 'data_criacao', 'usuario_consumidor')
+        read_only_fields = ('id', 'data_criacao', 'usuario_consumidor', 'arquivos')
 
     def get_usuario_consumidor_nome(self, obj):
         if obj.usuario_consumidor and obj.usuario_consumidor.usuario:
@@ -202,11 +213,17 @@ class ReclamacaoSerializer(serializers.ModelSerializer):
             return RespostaReclamacaoSerializer(resposta).data
         return None
 
-class ArquivoSerializer(serializers.ModelSerializer):
-    class Meta:
-        model = Arquivo
-        fields = ('id', 'reclamacao', 'arquivo', 'nome_arquivo', 'tipo_arquivo', 'data_upload')
-        read_only_fields = ('id', 'data_upload')
+    def create(self, validated_data):
+        arquivos_data = validated_data.pop('arquivos', [])
+        reclamacao = Reclamacao.objects.create(**validated_data)
+        for arquivo_data in arquivos_data:
+            Arquivo.objects.create(
+                reclamacao=reclamacao,
+                arquivo=arquivo_data,
+                nome_arquivo=arquivo_data.name,
+                tipo_arquivo=arquivo_data.content_type
+            )
+        return reclamacao
 
 class RespostaReclamacaoSerializer(serializers.ModelSerializer):
     reclamacao_titulo = serializers.CharField(source='reclamacao.titulo', read_only=True)

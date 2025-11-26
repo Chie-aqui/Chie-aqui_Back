@@ -143,7 +143,7 @@ class UsuarioEmpresaViewSet(viewsets.ModelViewSet):
         search_query = self.request.query_params.get('search', None)
         if search_query is not None:
             queryset = queryset.filter(
-                Q(nome__icontains=search_query) |
+                Q(nome_social__icontains=search_query) |
                 Q(razao_social__icontains=search_query) |
                 Q(cnpj__icontains=search_query)
             )

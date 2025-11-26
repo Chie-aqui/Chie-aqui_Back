@@ -84,9 +84,12 @@ class UsuarioConsumidorSerializer(serializers.ModelSerializer):
         usuario = instance.usuario
 
         # O DRF já trata campos com 'source' no nível superior de validated_data
-        nome = validated_data.get("nome")
-        email = validated_data.get("email")
-        phone = validated_data.get("phone")
+        print(f"[DEBUG] UsuarioConsumidorSerializer - validated_data: {validated_data}")
+        usuario_data = validated_data.get('usuario', {})
+        nome = usuario_data.get("nome")
+        email = usuario_data.get("email")
+        phone = usuario_data.get("phone")
+        print(f"[DEBUG] UsuarioConsumidorSerializer - nome: {nome}, email: {email}, phone: {phone}")
 
         senha = validated_data.pop("senha", None)
         
